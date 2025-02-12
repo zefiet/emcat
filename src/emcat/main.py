@@ -41,8 +41,11 @@ def run_client(client_id, serial_port=None, verbose=False):
     in the network using the interface.nodes dictionary.
     
     If there is piped input from stdin, the content is sent as a text message
-    to the target client using sendText.
+    to the target client using sendText. If the text payload is too big, it is
+    split into chunks and each chunk is sent separately.
     """
+    import re
+
     # Verify that client_id is in the correct 8-digit hexadecimal format
     if not re.fullmatch(r"[0-9a-fA-F]{8}", client_id):
         print(f"[ERROR] Provided client ID '{client_id}' is not in the correct format (8 hexadecimal digits).")
@@ -50,8 +53,9 @@ def run_client(client_id, serial_port=None, verbose=False):
 
     interface = connect_device(serial_port, verbose)
     
-    # Use interface.nodes to get the known nodes instead of showNodes (which prints a table)
+    # Use interface.nodes to get the known nodes (do not use showNodes, which prints a table)
     nodes = interface.nodes
+
     # Normalize node keys by removing any leading "!" and converting to lowercase for comparison.
     def normalize_node_key(key):
         return key.lstrip("!").lower()
@@ -72,8 +76,22 @@ def run_client(client_id, serial_port=None, verbose=False):
                 print(f"[INFO] Sending text to client {client_id}: {text}")
             # Prepend "!" to the client_id if not already present
             destination = client_id if client_id.startswith("!") else "!" + client_id.lower()
-            interface.sendText(text, destinationId=destination)
-            print("Text sent.")
+            
+            # Define maximum payload size (adjust as needed)
+            CHUNK_SIZE = 180
+            if len(text) > CHUNK_SIZE:
+                if verbose:
+                    print("[INFO] Payload too big, splitting into chunks.")
+                num_chunks = (len(text) + CHUNK_SIZE - 1) // CHUNK_SIZE
+                for i in range(0, len(text), CHUNK_SIZE):
+                    chunk = text[i:i+CHUNK_SIZE]
+                    if verbose:
+                        print(f"[INFO] Sending chunk {i//CHUNK_SIZE + 1}/{num_chunks}: {chunk}")
+                    interface.sendText(chunk, destinationId=destination)
+                print("Text sent in chunks.")
+            else:
+                interface.sendText(text, destinationId=destination)
+                print("Text sent.")
         else:
             print("[WARNING] No text provided via stdin.")
         return
