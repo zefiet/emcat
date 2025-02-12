@@ -12,7 +12,7 @@ import argparse
 import re
 import sys
 
-# Import the port number definitions from the Meshtastic package.
+# Import port number definitions from the Meshtastic package.
 from meshtastic import portnums_pb2
 
 
@@ -21,6 +21,9 @@ def connect_device(serial_port=None, verbose=False):
     Establish a connection to the Meshtastic device using the Meshtastic library.
     If a serial port is provided, it is used; otherwise, the default behavior of
     the Meshtastic client is applied.
+    
+    After a successful connection, the built-in sendHeartbeat() method is called
+    to verify that the connection is stable.
     """
     try:
         import meshtastic.serial_interface as ms
@@ -32,6 +35,18 @@ def connect_device(serial_port=None, verbose=False):
         interface = ms.SerialInterface(devPath=serial_port, debugOut=debug_output)
         if verbose:
             print("[INFO] Successfully connected to the Meshtastic device.")
+        
+        # Use the built-in sendHeartbeat method to verify connection stability.
+        try:
+            if verbose:
+                print("[INFO] Sending heartbeat using sendHeartbeat()...")
+            interface.sendHeartbeat()
+            if verbose:
+                print("[INFO] Heartbeat sent successfully.")
+        except Exception as heartbeat_error:
+            print(f"[ERROR] Failed to send heartbeat: {heartbeat_error}")
+            sys.exit(1)
+        
         return interface
     except Exception as e:
         print(f"[ERROR] Failed to connect to the Meshtastic device: {e}")
@@ -92,10 +107,14 @@ def run_client(client_id, serial_port=None, verbose=False):
                     chunk = data[i:i+CHUNK_SIZE]
                     if verbose:
                         print(f"[INFO] Sending chunk {i//CHUNK_SIZE + 1}/{num_chunks}: {chunk}")
-                    interface.sendData(chunk, destinationId=destination, portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP)
-                print(f"Data sent in {num_chunks} chunks.")
+                    interface.sendData(chunk,
+                                       destinationId=destination,
+                                       portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP)
+                print("Data sent in chunks.")
             else:
-                interface.sendData(data, destinationId=destination, portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP)
+                interface.sendData(data,
+                                   destinationId=destination,
+                                   portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP)
                 print("Data sent.")
         else:
             print("[WARNING] No text provided via stdin.")
