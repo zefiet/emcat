@@ -12,6 +12,10 @@ import argparse
 import re
 import sys
 
+# Import the port number definitions from the Meshtastic package.
+from meshtastic import portnums_pb2
+
+
 def connect_device(serial_port=None, verbose=False):
     """
     Establish a connection to the Meshtastic device using the Meshtastic library.
@@ -33,6 +37,7 @@ def connect_device(serial_port=None, verbose=False):
         print(f"[ERROR] Failed to connect to the Meshtastic device: {e}")
         sys.exit(1)
 
+
 def run_client(client_id, serial_port=None, verbose=False):
     """
     Client mode: Establishes a connection to the Meshtastic device and targets
@@ -40,12 +45,10 @@ def run_client(client_id, serial_port=None, verbose=False):
     formatted (8 hexadecimal digits) and then checks whether the node is known
     in the network using the interface.nodes dictionary.
     
-    If there is piped input from stdin, the content is sent as a text message
-    to the target client using sendText. If the text payload is too big, it is
+    If there is piped input from stdin, the content is sent as a data payload
+    to the target client using sendData. If the payload is too big, it is
     split into chunks and each chunk is sent separately.
     """
-    import re
-
     # Verify that client_id is in the correct 8-digit hexadecimal format
     if not re.fullmatch(r"[0-9a-fA-F]{8}", client_id):
         print(f"[ERROR] Provided client ID '{client_id}' is not in the correct format (8 hexadecimal digits).")
@@ -73,31 +76,34 @@ def run_client(client_id, serial_port=None, verbose=False):
         text = sys.stdin.read().strip()
         if text:
             if verbose:
-                print(f"[INFO] Sending text to client {client_id}: {text}")
+                print(f"[INFO] Sending data to client {client_id}: {text}")
             # Prepend "!" to the client_id if not already present
             destination = client_id if client_id.startswith("!") else "!" + client_id.lower()
             
-            # Define maximum payload size (adjust as needed)
+            # Convert text to bytes (UTF-8 encoded)
+            data = text.encode("utf-8")
+            # Define maximum payload size (in bytes); adjust as necessary
             CHUNK_SIZE = 180
-            if len(text) > CHUNK_SIZE:
+            if len(data) > CHUNK_SIZE:
                 if verbose:
                     print("[INFO] Payload too big, splitting into chunks.")
-                num_chunks = (len(text) + CHUNK_SIZE - 1) // CHUNK_SIZE
-                for i in range(0, len(text), CHUNK_SIZE):
-                    chunk = text[i:i+CHUNK_SIZE]
+                num_chunks = (len(data) + CHUNK_SIZE - 1) // CHUNK_SIZE
+                for i in range(0, len(data), CHUNK_SIZE):
+                    chunk = data[i:i+CHUNK_SIZE]
                     if verbose:
                         print(f"[INFO] Sending chunk {i//CHUNK_SIZE + 1}/{num_chunks}: {chunk}")
-                    interface.sendText(chunk, destinationId=destination)
-                print("Text sent in chunks.")
+                    interface.sendData(chunk, destinationId=destination, portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP)
+                print(f"Data sent in {num_chunks} chunks.")
             else:
-                interface.sendText(text, destinationId=destination)
-                print("Text sent.")
+                interface.sendData(data, destinationId=destination, portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP)
+                print("Data sent.")
         else:
             print("[WARNING] No text provided via stdin.")
         return
     
     # Interactive mode could be implemented here if needed.
     print("Client mode: Meshtastic connection established. Awaiting input (interactive mode not implemented).")
+
 
 def run_server(serial_port=None, verbose=False):
     """
@@ -108,6 +114,7 @@ def run_server(serial_port=None, verbose=False):
     if verbose:
         print("[INFO] Server mode started.")
     print("Server mode: Meshtastic connection established. Data transmission not yet implemented.")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -129,6 +136,7 @@ def main():
         if not args.client_id:
             parser.error("In client mode, a target Meshtastic Client ID must be provided.")
         run_client(args.client_id, args.serial, args.verbose)
+
 
 if __name__ == "__main__":
     main()
