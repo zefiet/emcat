@@ -169,25 +169,41 @@ def run_server(serial_port=None, verbose=0):
     When a packet is received, print its raw content.
     If the serial port disconnects, catch the event and exit gracefully.
     """
-    interface = connect_device(serial_port, verbose)
+    
     if verbose >= 1:
         print("[INFO] Server mode started.")
 
+    def onConnection(interface, topic=pub.AUTO_TOPIC):
+        if verbose >= 1:
+            print("[INFO] Meshtastic device connected.")
+        pub.subscribe(on_receive, "meshtastic.receive")
+
     def on_receive(packet, interface):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"\n[{timestamp}] Received packet:\n{packet}\n")
+        if verbose >= 1:
+            timestamp = datetime.now().strftime("%y-%m-%d %H:%M:%S")
+            channel_str = f" | CH: {packet['channel']}" if 'channel' in packet else ""
+            prio_str = f" | PRIO: {packet['priority']}" if 'priority' in packet else ""
+            port_str = f" | PORT: {packet['decoded']['portnum']}" if 'portnum' in packet['decoded'] else ""
+            payload_str = f" | PAYLOAD: {packet['decoded']['payload']}" if 'payload' in packet['decoded'] else ""
+            print(f"[{timestamp}] !{format(packet['from'], '08x')} > !{format(packet['to'], '08x')}{channel_str}{prio_str}{port_str}{payload_str}")
 
     def on_disconnect(interface, topic=pub.AUTO_TOPIC):
         print("[INFO] Meshtastic device disconnected. Exiting gracefully.")
         sys.exit(0)
-
+        
     # Subscribe to the receive and disconnect topics using pubsub.
-    pub.subscribe(on_receive, "meshtastic.receive")
+    #pub.subscribe(on_receive, "meshtastic.receive")
     pub.subscribe(on_disconnect, "meshtastic.connection.lost")
+    pub.subscribe(onConnection, "meshtastic.connection.established")
+
+    interface = connect_device(serial_port, verbose)
 
     print("Server mode: Listening for incoming Meshtastic packets...")
+    
+    # Keep the server loop running indefinitely.
     while True:
         try:
+            interface.sendHeartbeat()
             time.sleep(1)
         except Exception as e:
             print(f"[ERROR] Exception in server loop: {e}")
