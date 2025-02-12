@@ -71,8 +71,29 @@ def send_chunk(interface, chunk, destination, timeout=DEFAULT_TIMEOUT, verbose=0
     ack_event = threading.Event()
 
     def callback(response):
+        # Print debug information if verbose level is 1 or higher.
         if verbose >= 1:
-            print(f"[DEBUG] ACK callback triggered with response: {response}")
+            print(f"[DEBUG] ACK callback triggered")# with response: {response}")
+
+        # Extract the 'decoded' part from the response dictionary.
+        decoded = response.get("decoded", {})
+
+        # Extract the 'routing' information from the decoded section.
+        routing = decoded.get("routing", {})
+
+        # Get the error reason; default to "NONE" if not provided.
+        error_reason = routing.get("errorReason", "NONE")
+
+        # Check if there was a delivery error.
+        if error_reason != "NONE":
+            if verbose >= 1:
+                print(f"[DEBUG] Delivery error occurred: {error_reason}")
+            # Here you could handle the error, such as logging or retrying.
+        else:
+            if verbose >= 1:
+                print("[DEBUG] Message delivered successfully (ACK received).")
+
+        # Signal that the callback processing is complete.
         ack_event.set()
 
     while not ack_event.is_set():
