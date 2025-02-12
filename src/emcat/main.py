@@ -9,6 +9,7 @@ you might not want to use it at all. Reviews and pull requests are welcome.
 """
 
 import argparse
+import re
 import sys
 
 def connect_device(serial_port=None, verbose=False):
@@ -34,13 +35,32 @@ def connect_device(serial_port=None, verbose=False):
 def run_client(client_id, serial_port=None, verbose=False):
     """
     Client mode: Establishes a connection to the Meshtastic device and targets
-    a specific Meshtastic client ID. Later, implement the logic to send messages
-    to the specified client.
+    a specific Meshtastic client ID. It verifies that the client ID is correctly
+    formatted (8 hexadecimal digits) and then checks whether the node is known
+    in the network using the interface.nodes dictionary.
     """
+    import re
+    # Verify that client_id is in the correct 8-digit hexadecimal format
+    if not re.fullmatch(r"[0-9a-fA-F]{8}", client_id):
+        print(f"[ERROR] Provided client ID '{client_id}' is not in the correct format (8 hexadecimal digits).")
+        sys.exit(1)
+
     interface = connect_device(serial_port, verbose)
+    
+    # Instead of using showNodes (which prints a table), use interface.nodes to get the known nodes.
+    nodes = interface.nodes
+    # Normalize node keys by removing any leading "!" and converting to lowercase for comparison.
+    def normalize_node_key(key):
+        return key.lstrip("!").lower()
+    known_nodes = {normalize_node_key(node_id) for node_id in nodes.keys()}
+    
+    if client_id.lower() not in known_nodes:
+        print(f"[ERROR] Client ID '{client_id}' not found among known nodes: {list(known_nodes)}")
+        sys.exit(1)
+    
     if verbose:
         print(f"[INFO] Client mode started. Target Meshtastic Client ID: {client_id}")
-    print("Client mode: Meshtastic connection established. Data transmission not yet implemented.")
+    print("Client mode: Meshtastic connection established and client ID verified. Data transmission not yet implemented.")
 
 def run_server(serial_port=None, verbose=False):
     """
