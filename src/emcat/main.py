@@ -23,8 +23,9 @@ def connect_device(serial_port=None, verbose=False):
         port_info = serial_port if serial_port else "default detection"
         if verbose:
             print(f"[INFO] Attempting to connect to the Meshtastic device (Serial Port: {port_info})...")
-        # Use the correct parameter 'devPath' to specify the serial port
-        interface = ms.SerialInterface(devPath=serial_port, debugOut=verbose)
+        # Pass sys.stdout as debug output if verbose is True
+        debug_output = sys.stdout if verbose else None
+        interface = ms.SerialInterface(devPath=serial_port, debugOut=debug_output)
         if verbose:
             print("[INFO] Successfully connected to the Meshtastic device.")
         return interface
@@ -38,8 +39,10 @@ def run_client(client_id, serial_port=None, verbose=False):
     a specific Meshtastic client ID. It verifies that the client ID is correctly
     formatted (8 hexadecimal digits) and then checks whether the node is known
     in the network using the interface.nodes dictionary.
+    
+    If there is piped input from stdin, the content is sent as a text message
+    to the target client using sendText.
     """
-    import re
     # Verify that client_id is in the correct 8-digit hexadecimal format
     if not re.fullmatch(r"[0-9a-fA-F]{8}", client_id):
         print(f"[ERROR] Provided client ID '{client_id}' is not in the correct format (8 hexadecimal digits).")
@@ -47,7 +50,7 @@ def run_client(client_id, serial_port=None, verbose=False):
 
     interface = connect_device(serial_port, verbose)
     
-    # Instead of using showNodes (which prints a table), use interface.nodes to get the known nodes.
+    # Use interface.nodes to get the known nodes instead of showNodes (which prints a table)
     nodes = interface.nodes
     # Normalize node keys by removing any leading "!" and converting to lowercase for comparison.
     def normalize_node_key(key):
@@ -60,7 +63,23 @@ def run_client(client_id, serial_port=None, verbose=False):
     
     if verbose:
         print(f"[INFO] Client mode started. Target Meshtastic Client ID: {client_id}")
-    print("Client mode: Meshtastic connection established and client ID verified. Data transmission not yet implemented.")
+    
+    # Check if there's piped input from stdin
+    if not sys.stdin.isatty():
+        text = sys.stdin.read().strip()
+        if text:
+            if verbose:
+                print(f"[INFO] Sending text to client {client_id}: {text}")
+            # Prepend "!" to the client_id if not already present
+            destination = client_id if client_id.startswith("!") else "!" + client_id.lower()
+            interface.sendText(text, destinationId=destination)
+            print("Text sent.")
+        else:
+            print("[WARNING] No text provided via stdin.")
+        return
+    
+    # Interactive mode could be implemented here if needed.
+    print("Client mode: Meshtastic connection established. Awaiting input (interactive mode not implemented).")
 
 def run_server(serial_port=None, verbose=False):
     """
