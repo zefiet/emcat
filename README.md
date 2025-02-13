@@ -4,7 +4,7 @@
 It lets you send and receive messages directly between Meshtastic devices.
 It enables communication between hosts using Meshtastic networks.
 
-**Note:** This is a **proof-of-concept** and is not recommended for production use — in fact, you might not want to use it at all. 
+**Note:** This is a **proof-of-concept** and is not recommended for production use — in fact, you might not want to use it at all.
 
 Reviews and pull requests are welcome :)
 
@@ -12,12 +12,19 @@ Reviews and pull requests are welcome :)
 
 Start an `emcat` listnener to receive data
 
-```
-emcat -l
+``` zsh
+emcat -l > data.txt
 ```
 
 Send data to receiver
 
-```
+``` zsh
 cat data.txt | emcat 00affe00
+```
+
+## Install
+
+```zsh
+gh repo clone zefiet/emcat
+pipx install .
 ```
