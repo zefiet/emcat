@@ -1,0 +1,6 @@
+[tool.semantic_release]
+version_source = "tag"  # Use Git tags as version source
+branch = "main"  # Only release from main branch
+version_variable = "pyproject.toml:version"  # Update version in pyproject.toml
+commit_message = "chore(release): bump version to {version}"
+upload_to_pypi = false  # PyPI upload is handled separately in GitHub Actions

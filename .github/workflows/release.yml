@@ -1,0 +1,68 @@
+name: Automated Release
+
+on:
+  push:
+    branches:
+      - main  # Only run on the main branch
+
+permissions:
+  contents: write  # Required to push tags and create releases
+
+jobs:
+  release:
+    name: Version & Release Automation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensure full history for version calculation
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-semantic-release build twine
+
+      - name: Generate new version & create tag
+        id: versioning
+        run: |
+          semantic-release version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get new version
+        id: get_version
+        run: echo "VERSION=$(semantic-release print-version)" >> $GITHUB_ENV
+
+      - name: Build Python package
+        run: python -m build
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          body: |
+            ## Changes in this release
+            Auto-generated release for version v${{ env.VERSION }}.
+            Check the commit history for details.
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+
+      - name: Publish to PyPI
+        if: success()
+        run: |
+          twine upload dist/*
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
