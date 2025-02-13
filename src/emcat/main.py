@@ -27,9 +27,11 @@ def sigint_handler(sig, frame):
 signal.signal(signal.SIGINT, sigint_handler)
 
 # Global default configuration
-DEFAULT_DELAY = 1         # Delay between sending chunks in seconds (default: 1 second)
-DEFAULT_TIMEOUT = 30      # Timeout for waiting for an ACK in seconds (default: 30 seconds)
+DEFAULT_DELAY = 0         # Delay between sending chunks in seconds (default: 1 second)
+DEFAULT_TIMEOUT = 10      # Timeout for waiting for an ACK in seconds (default: 30 seconds)
 DEFAULT_CHUNK_SIZE = 180  # Maximum payload size per chunk in bytes (default: 180 bytes)
+DEFAULT_PORT = 256        # Default port number for sending data
+
 
 # Import port number definitions from the Meshtastic package.
 from meshtastic import portnums_pb2
@@ -102,7 +104,8 @@ def send_chunk(interface, chunk, destination, timeout=DEFAULT_TIMEOUT, verbose=0
             interface.sendData(
                 chunk,
                 destinationId=destination,
-                portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP,
+                #portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP,
+                portNum=DEFAULT_PORT,
                 wantAck=True,
                 onResponse=callback,
                 onResponseAckPermitted=True
@@ -113,9 +116,10 @@ def send_chunk(interface, chunk, destination, timeout=DEFAULT_TIMEOUT, verbose=0
             continue
         if not ack_event.wait(timeout):
             print("[WARNING] No ACK received, resending chunk...")
-        else:
+        else:            
             if verbose >= 1:
                 print("[INFO] ACK received for chunk.")
+    ack_event.clear()
     return True
 
 
