@@ -180,7 +180,9 @@ def run_server(serial_port=None, verbose=0):
     def onConnection(interface, topic=pub.AUTO_TOPIC):
         if verbose >= 1:
             print("[INFO] Meshtastic device connected.")
-        pub.subscribe(on_receive, "meshtastic.receive")
+            
+        pub.subscribe(on_receive, "meshtastic.receive")        
+        pub.subscribe(on_receive_data,  "meshtastic.receive.data")
 
     def on_receive(packet, interface):
         if verbose >= 1:
@@ -190,6 +192,14 @@ def run_server(serial_port=None, verbose=0):
             port_str = f" | PORT: {packet['decoded']['portnum']}" if 'portnum' in packet['decoded'] else ""
             payload_str = f" | PAYLOAD: {packet['decoded']['payload']}" if 'payload' in packet['decoded'] else ""
             print(f"[{timestamp}] !{format(packet['from'], '08x')} > !{format(packet['to'], '08x')}{channel_str}{prio_str}{port_str}{payload_str}")
+
+    def on_receive_data(packet, interface):
+        from pprint import pprint
+        
+        try:
+            packet.show()
+        except AttributeError:
+            pprint(packet)
 
     def on_disconnect(interface, topic=pub.AUTO_TOPIC):
         print("[INFO] Meshtastic device disconnected. Exiting gracefully.")
