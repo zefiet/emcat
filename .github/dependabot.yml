@@ -1,0 +1,42 @@
+version: 2
+updates:
+  # Keep Python dependencies up to date
+  - package-ecosystem: "pip"
+    directory: "/"  # The project uses pyproject.toml in the root directory
+    schedule:
+      interval: "daily"  # Check for updates daily
+    open-pull-requests-limit: 5  # Limit the number of open PRs to avoid clutter
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    allow:
+      - dependency-type: "direct"  # Allow updates for direct dependencies
+      - dependency-type: "indirect"  # Allow updates for transitive dependencies
+    versioning-strategy: "increase"  # Automatically upgrade dependencies
+    ignore: []  # No dependencies are excluded, including meshtastic
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"  # Group all Python dependencies into a single PR
+        update-types:
+          - "minor"
+          - "patch"
+    rebase-strategy: "auto"  # Attempt to rebase automatically if needed
+    automerge: true  # Automatically merge minor and patch updates
+
+  # Keep GitHub Actions dependencies up to date (for future workflows)
+  - package-ecosystem: "github-actions"
+    directory: "/"  # Workflow files are expected in .github/workflows/
+    schedule:
+      interval: "weekly"  # Check for updates weekly to avoid excessive PRs
+    labels:
+      - "ci"
+      - "dependencies"
+    commit-message:
+      prefix: "ci(deps)"
+      include: "scope"
+    rebase-strategy: "auto"
+    automerge: true  # Automatically merge minor and patch updates
