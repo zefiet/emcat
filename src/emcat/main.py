@@ -99,7 +99,7 @@ def send_chunk(interface, chunk, destination, timeout=DEFAULT_TIMEOUT, verbose=0
             if verbose >= 1:
                 print(f"[WARNING] Exception during sending heartbeat: {e}")
         if verbose >= 1:
-            print(f"[INFO] Sending chunk: {chunk}")
+            print(f"[INFO] Sending data: {chunk}")
         try:
             interface.sendData(
                 chunk,
@@ -167,13 +167,23 @@ def run_client(client_id, serial_port=None, verbose=0, delay=DEFAULT_DELAY,
             if verbose >= 1:
                 print(f"[INFO] Sending header message: {header}")
             send_chunk(interface, header, destination, timeout=timeout, verbose=verbose)
+            if verbose >= 1:
+                print(f"[INFO] Waiting {delay} second(s) before sending first chunk...")
+            time.sleep(delay)
             
-            # Now send the data chunks
-            for index, chunk in enumerate(chunks, start=1):
+            # Now send the data chunks with per-chunk headers
+            for chunk_number, chunk in enumerate(chunks):
+                # Build per-chunk header:
+                # - Static "ɛm" as UTF-8 encoded bytes,
+                # - 0x90 as delimiter,
+                # - current chunk number (starting at 0) as a single byte,
+                # - 0x90 as delimiter.
+                chunk_header = "ɛm".encode("utf-8") + b'\x90' + bytes([chunk_number]) + b'\x90'
+                full_chunk = chunk_header + chunk
                 if verbose >= 1:
-                    print(f"[INFO] Sending chunk {index}/{total_chunks}")
-                send_chunk(interface, chunk, destination, timeout=timeout, verbose=verbose)
-                if index < total_chunks:
+                    print(f"[INFO] Sending chunk {chunk_number + 1}/{total_chunks} (chunk number: {chunk_number})")
+                send_chunk(interface, full_chunk, destination, timeout=timeout, verbose=verbose)
+                if chunk_number < total_chunks - 1:
                     if verbose >= 1:
                         print(f"[INFO] Waiting {delay} second(s) before sending next chunk...")
                     time.sleep(delay)
@@ -190,6 +200,7 @@ def run_server(serial_port=None, verbose=0):
     Server mode: Connect to the Meshtastic device and listen for incoming packets using pubsub.
     Only packets on the DEFAULT_PORT are processed.
     Once an emcat session is initialized (via the header), only packets from the session's client ID are processed.
+    Upon initialization, a buffer of (total_chunks * chunk_length) bytes is allocated.
     """
     if verbose >= 1:
         print("[INFO] Server mode started.")
@@ -197,15 +208,18 @@ def run_server(serial_port=None, verbose=0):
     # Session state variables
     session_initialized = False
     session_client_id = None
+    session_total_chunks = 0
+    session_chunk_length = 0
+    session_buffer = None  # Will hold the allocated buffer for the session data
 
     def onConnection(interface, topic=pub.AUTO_TOPIC):
         if verbose >= 1:
             print("[INFO] Meshtastic device connected.")
         pub.subscribe(on_receive, "meshtastic.receive")
-        pub.subscribe(on_receive_data, "meshtastic.receive.data")
+        #pub.subscribe(on_receive_data, "meshtastic.receive.data")
 
     def on_receive(packet, interface):
-        nonlocal session_initialized, session_client_id
+        nonlocal session_initialized, session_client_id, session_total_chunks, session_chunk_length, session_buffer
 
         # Debug: print the entire packet if verbose level is 2 or higher
         if verbose >= 2:
@@ -255,10 +269,15 @@ def run_server(serial_port=None, verbose=0):
                             total_chunks = payload_bytes[len(header_signature) + 1]
                             chunk_length = payload_bytes[len(header_signature) + 3]
                             session_client_id = packet['from']
+                            session_total_chunks = total_chunks
+                            session_chunk_length = chunk_length
+                            # Allocate the session buffer (total_chunks * chunk_length bytes)
+                            session_buffer = bytearray(total_chunks * chunk_length)
                             session_initialized = True
                             if verbose >= 1:
-                                print(f"[INFO] Emtcat session initiated from client {format(session_client_id, '08x')}. "
-                                      f"Expecting {total_chunks} chunks with chunk length {chunk_length}.")
+                                print(f"[INFO] Session initiated from client {format(session_client_id, '08x')}. "
+                                      f"Expecting {total_chunks} chunks with chunk length {chunk_length}. "
+                                      f"Allocated buffer of {total_chunks * chunk_length} bytes.")
                         else:
                             if verbose >= 2:
                                 print("[DEBUG] Header markers invalid; header format not recognized.")
@@ -273,21 +292,21 @@ def run_server(serial_port=None, verbose=0):
             if verbose >= 1:
                 print(f"[INFO] Session packet received from client {format(packet['from'], '08x')}.")
 
-        # Additionally, print packet details if verbose level is 1 or higher
-        if verbose >= 1:
+        # Additionally, print packet details if verbose level is 2 or higher
+        if verbose >= 2:
             timestamp = datetime.now().strftime("%y-%m-%d %H:%M:%S")
             channel_str = f" | CH: {packet['channel']}" if 'channel' in packet else ""
             prio_str = f" | PRIO: {packet['priority']}" if 'priority' in packet else ""
             payload_str = f" | PAYLOAD: {payload}"
-            print(f"[{timestamp}] !{format(packet['from'], '08x')} > !{format(packet['to'], '08x')}"
+            print(f"[DEBUG] [{timestamp}] !{format(packet['from'], '08x')} > !{format(packet['to'], '08x')}"
                   f"{channel_str}{prio_str} | PORT: {portnum}{payload_str}")
 
-    def on_receive_data(packet, interface):
-        from pprint import pprint
-        try:
-            packet.show()
-        except AttributeError:
-            pprint(packet)
+    # def on_receive_data(packet, interface):
+    #     from pprint import pprint
+    #     try:
+    #         packet.show()
+    #     except AttributeError:
+    #         pprint(packet)
 
     def on_disconnect(interface, topic=pub.AUTO_TOPIC):
         if verbose >= 1:
@@ -310,6 +329,7 @@ def run_server(serial_port=None, verbose=0):
         except Exception as e:
             print(f"[ERROR] Exception in server loop: {e}")
             sys.exit(1)
+            
 
 def main():
     parser = argparse.ArgumentParser(
