@@ -126,32 +126,49 @@ def send_chunk(interface, chunk, destination, timeout=DEFAULT_TIMEOUT, verbose=0
 def run_client(client_id, serial_port=None, verbose=0, delay=DEFAULT_DELAY,
                timeout=DEFAULT_TIMEOUT, chunksize=DEFAULT_CHUNK_SIZE):
     """
-    Client mode: Connect to the Meshtastic device and target a specific client ID.
-    If input is piped via stdin, send the content as a data payload in chunks.
+    Client mode: Connect to the Meshtastic device and send data to a specific client.
+    Before sending the first data chunk, a header message is sent containing protocol info.
     """
+    # Validate client_id format (must be 8 hexadecimal digits)
     if not re.fullmatch(r"[0-9a-fA-F]{8}", client_id):
         print(f"[ERROR] Provided client ID '{client_id}' is not in the correct format (8 hexadecimal digits).")
         sys.exit(1)
+        
     interface = connect_device(serial_port, verbose)
     nodes = interface.nodes
 
     def normalize_node_key(key):
         return key.lstrip("!").lower()
+
     known_nodes = {normalize_node_key(node_id) for node_id in nodes.keys()}
     if client_id.lower() not in known_nodes:
         print(f"[ERROR] Client ID '{client_id}' not found among known nodes: {list(known_nodes)}")
         sys.exit(1)
+        
     if verbose >= 1:
         print(f"[INFO] Client mode started. Target Meshtastic Client ID: {client_id}")
+        
     if not sys.stdin.isatty():
         text = sys.stdin.read().strip()
         if text:
             if verbose >= 1:
                 print(f"[INFO] Sending data to client {client_id}: {text}")
+                
+            # Ensure destination client ID is formatted correctly
             destination = client_id if client_id.startswith("!") else "!" + client_id.lower()
             data = text.encode("utf-8")
             chunks = [data[i:i+chunksize] for i in range(0, len(data), chunksize)]
             total_chunks = len(chunks)
+            
+            # Build header message:
+            # Byte sequence of "[ɛm kæt]" followed by 0x90 and total_chunks,
+            # then 0x90 and chunksize.
+            header = "[ɛm kæt]".encode("utf-8") + b'\x90' + bytes([total_chunks]) + b'\x90' + bytes([chunksize])
+            if verbose >= 1:
+                print(f"[INFO] Sending header message: {header}")
+            send_chunk(interface, header, destination, timeout=timeout, verbose=verbose)
+            
+            # Now send the data chunks
             for index, chunk in enumerate(chunks, start=1):
                 if verbose >= 1:
                     print(f"[INFO] Sending chunk {index}/{total_chunks}")
@@ -164,6 +181,7 @@ def run_client(client_id, serial_port=None, verbose=0, delay=DEFAULT_DELAY,
         else:
             print("[WARNING] No text provided via stdin.")
         return
+        
     print("Client mode: Meshtastic connection established. Awaiting input (interactive mode not implemented).")
 
 
@@ -171,9 +189,14 @@ def run_server(serial_port=None, verbose=0):
     """
     Server mode: Connect to the Meshtastic device and listen for incoming packets using pubsub.
     Only packets on the DEFAULT_PORT are processed.
+    Once an emcat session is initialized (via the header), only packets from the session's client ID are processed.
     """
     if verbose >= 1:
         print("[INFO] Server mode started.")
+
+    # Session state variables
+    session_initialized = False
+    session_client_id = None
 
     def onConnection(interface, topic=pub.AUTO_TOPIC):
         if verbose >= 1:
@@ -182,6 +205,8 @@ def run_server(serial_port=None, verbose=0):
         pub.subscribe(on_receive_data, "meshtastic.receive.data")
 
     def on_receive(packet, interface):
+        nonlocal session_initialized, session_client_id
+
         # Debug: print the entire packet if verbose level is 2 or higher
         if verbose >= 2:
             print(f"[DEBUG] Received packet: {packet}")
@@ -203,14 +228,59 @@ def run_server(serial_port=None, verbose=0):
                 print(f"[DEBUG] Ignoring packet with port {portnum} (expected {expected_port}).")
             return
 
-        # Info: print packet details if verbose level is 1 or higher
+        # Retrieve the payload from the packet
+        payload = packet['decoded'].get('payload', None)
+        header_signature = "[ɛm kæt]".encode("utf-8")
+
+        # If session is not yet initialized, check for header packet
+        if not session_initialized:
+            if payload is not None:
+                # Convert payload to bytes if it is a string
+                if isinstance(payload, str):
+                    payload_bytes = payload.encode("utf-8")
+                else:
+                    payload_bytes = payload
+
+                # Check if the payload starts with the header signature
+                if payload_bytes.startswith(header_signature):
+                    # Ensure payload contains enough bytes for the header format:
+                    # header_signature + 0x90 + total_chunks + 0x90 + chunk_length
+                    expected_header_length = len(header_signature) + 4
+                    if len(payload_bytes) < expected_header_length:
+                        if verbose >= 1:
+                            print("[WARNING] Incomplete header received; ignoring header parsing.")
+                    else:
+                        # Verify header markers at the expected positions
+                        if payload_bytes[len(header_signature)] == 0x90 and payload_bytes[len(header_signature) + 2] == 0x90:
+                            total_chunks = payload_bytes[len(header_signature) + 1]
+                            chunk_length = payload_bytes[len(header_signature) + 3]
+                            session_client_id = packet['from']
+                            session_initialized = True
+                            if verbose >= 1:
+                                print(f"[INFO] Emtcat session initiated from client {format(session_client_id, '08x')}. "
+                                      f"Expecting {total_chunks} chunks with chunk length {chunk_length}.")
+                        else:
+                            if verbose >= 2:
+                                print("[DEBUG] Header markers invalid; header format not recognized.")
+        else:
+            # Session is initialized: Only process packets from the session client ID.
+            if packet['from'] != session_client_id:
+                if verbose >= 2:
+                    print(f"[DEBUG] Ignoring packet from client {format(packet['from'], '08x')}; "
+                          f"session active from client {format(session_client_id, '08x')}.")
+                return
+            # For every packet that belongs to the session, print an info message.
+            if verbose >= 1:
+                print(f"[INFO] Session packet received from client {format(packet['from'], '08x')}.")
+
+        # Additionally, print packet details if verbose level is 1 or higher
         if verbose >= 1:
             timestamp = datetime.now().strftime("%y-%m-%d %H:%M:%S")
             channel_str = f" | CH: {packet['channel']}" if 'channel' in packet else ""
             prio_str = f" | PRIO: {packet['priority']}" if 'priority' in packet else ""
-            payload_str = f" | PAYLOAD: {packet['decoded'].get('payload', '')}"
+            payload_str = f" | PAYLOAD: {payload}"
             print(f"[{timestamp}] !{format(packet['from'], '08x')} > !{format(packet['to'], '08x')}"
-                f"{channel_str}{prio_str} | PORT: {portnum}{payload_str}")
+                  f"{channel_str}{prio_str} | PORT: {portnum}{payload_str}")
 
     def on_receive_data(packet, interface):
         from pprint import pprint
@@ -232,7 +302,7 @@ def run_server(serial_port=None, verbose=0):
 
     print("Server mode: Listening for incoming Meshtastic packets...")
 
-    # Keep the server loop running indefinitely
+    # Keep the server loop running indefinitely.
     while True:
         try:
             interface.sendHeartbeat()
@@ -240,7 +310,6 @@ def run_server(serial_port=None, verbose=0):
         except Exception as e:
             print(f"[ERROR] Exception in server loop: {e}")
             sys.exit(1)
-
 
 def main():
     parser = argparse.ArgumentParser(
