@@ -28,3 +28,16 @@ cat data.txt | emcat 00affe00
 gh repo clone zefiet/emcat
 pipx install .
 ```
+
+## Usage
+
+### Verbose Level
+
+#### `-v`
+Show **INFO** Messages
+
+#### `-vv`
+Show **INFO** and **DEBUG** Messages
+
+#### `-vvvv`
+Show **INFO**, **DEBUG** and Meshtastic Messages
