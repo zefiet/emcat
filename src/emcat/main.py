@@ -50,7 +50,7 @@ def connect_device(serial_port=None, verbose=0):
         port_info = serial_port if serial_port else "default detection"
         if verbose >= 1:
             print(f"[INFO] Attempting to connect to the Meshtastic device (Serial Port: {port_info})...")
-        debug_output = sys.stdout if verbose >= 2 else None
+        debug_output = sys.stdout if verbose >= 3 else None
         interface = ms.SerialInterface(devPath=serial_port, debugOut=debug_output)
         if verbose >= 1:
             print("[INFO] Successfully connected to the Meshtastic device.")
@@ -170,51 +170,69 @@ def run_client(client_id, serial_port=None, verbose=0, delay=DEFAULT_DELAY,
 def run_server(serial_port=None, verbose=0):
     """
     Server mode: Connect to the Meshtastic device and listen for incoming packets using pubsub.
-    When a packet is received, print its raw content.
-    If the serial port disconnects, catch the event and exit gracefully.
+    Only packets on the DEFAULT_PORT are processed.
     """
-    
     if verbose >= 1:
         print("[INFO] Server mode started.")
 
     def onConnection(interface, topic=pub.AUTO_TOPIC):
         if verbose >= 1:
             print("[INFO] Meshtastic device connected.")
-            
-        pub.subscribe(on_receive, "meshtastic.receive")        
-        pub.subscribe(on_receive_data,  "meshtastic.receive.data")
+        pub.subscribe(on_receive, "meshtastic.receive")
+        pub.subscribe(on_receive_data, "meshtastic.receive.data")
 
     def on_receive(packet, interface):
+        # Debug: print the entire packet if verbose level is 2 or higher
+        if verbose >= 2:
+            print(f"[DEBUG] Received packet: {packet}")
+
+        # Attempt to extract the port number from the packet
+        try:
+            portnum = packet['decoded'].get('portnum', None)
+        except (AttributeError, KeyError):
+            if verbose >= 2:
+                print(f"[DEBUG] Packet missing 'portnum': {packet}")
+            return
+
+        # Convert the expected port number (256) to its enum name, e.g., "PRIVATE_APP"
+        expected_port = portnums_pb2.PortNum.Name(DEFAULT_PORT)
+
+        # Filter: Only process packets with the expected port name
+        if portnum != expected_port:
+            if verbose >= 2:
+                print(f"[DEBUG] Ignoring packet with port {portnum} (expected {expected_port}).")
+            return
+
+        # Info: print packet details if verbose level is 1 or higher
         if verbose >= 1:
             timestamp = datetime.now().strftime("%y-%m-%d %H:%M:%S")
             channel_str = f" | CH: {packet['channel']}" if 'channel' in packet else ""
             prio_str = f" | PRIO: {packet['priority']}" if 'priority' in packet else ""
-            port_str = f" | PORT: {packet['decoded']['portnum']}" if 'portnum' in packet['decoded'] else ""
-            payload_str = f" | PAYLOAD: {packet['decoded']['payload']}" if 'payload' in packet['decoded'] else ""
-            print(f"[{timestamp}] !{format(packet['from'], '08x')} > !{format(packet['to'], '08x')}{channel_str}{prio_str}{port_str}{payload_str}")
+            payload_str = f" | PAYLOAD: {packet['decoded'].get('payload', '')}"
+            print(f"[{timestamp}] !{format(packet['from'], '08x')} > !{format(packet['to'], '08x')}"
+                f"{channel_str}{prio_str} | PORT: {portnum}{payload_str}")
 
     def on_receive_data(packet, interface):
         from pprint import pprint
-        
         try:
             packet.show()
         except AttributeError:
             pprint(packet)
 
     def on_disconnect(interface, topic=pub.AUTO_TOPIC):
-        print("[INFO] Meshtastic device disconnected. Exiting gracefully.")
+        if verbose >= 1:
+            print("[INFO] Meshtastic device disconnected. Exiting gracefully.")
         sys.exit(0)
-        
-    # Subscribe to the receive and disconnect topics using pubsub.
-    #pub.subscribe(on_receive, "meshtastic.receive")
+
+    # Subscribe to connection lost and established topics
     pub.subscribe(on_disconnect, "meshtastic.connection.lost")
     pub.subscribe(onConnection, "meshtastic.connection.established")
 
     interface = connect_device(serial_port, verbose)
 
     print("Server mode: Listening for incoming Meshtastic packets...")
-    
-    # Keep the server loop running indefinitely.
+
+    # Keep the server loop running indefinitely
     while True:
         try:
             interface.sendHeartbeat()
