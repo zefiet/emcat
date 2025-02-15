@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.0 (2025-02-15)
+
+### Features
+
+- Add emcat Logo
+  ([`237a042`](https://github.com/zefiet/emcat/commit/237a042da01bec5acac19f2633fa28715d647cd5))
+
+
 ## v0.3.6 (2025-02-15)
 
 ### Bug Fixes

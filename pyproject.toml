@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emcat"
-version = "0.3.6"
+version = "0.4.0"
 description = "A netcat-inspired CLI tool that uses the Meshtastic library to connect to a Meshtastic device via serial."
 readme = "README.md"
 license = { file = "LICENSE" }
