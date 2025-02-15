@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.1 (2025-02-15)
+
+### Bug Fixes
+
+- Fix logo filename
+  ([`bc33eb9`](https://github.com/zefiet/emcat/commit/bc33eb9334f839897e13b9d1f6ee02514c04ad06))
+
+
 ## v0.4.0 (2025-02-15)
 
 ### Features
