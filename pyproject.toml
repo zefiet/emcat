@@ -29,11 +29,11 @@ classifiers = [
 emcat = "emcat.main:main"
 
 [tool.semantic_release]
-version_source = "commit"          # Use the version in the file (project.version) as the source
-branch = "main"                    # Only release from the main branch
+branch = "main"
+version_source = "toml"  # Wichtig: Quelle der Version angeben
+version_toml = ["pyproject.toml:project.version"]
+changelog_file = "CHANGELOG.md"
+update_changelog = true
+upload_to_pypi = false  # Optional, je nach Workflow
 
-version_variable = "pyproject.toml:project.version"  # Update version in pyproject.toml under [project]
-commit_message = "chore(release): bump version to {version}"  # Commit message for the version bump
-upload_to_pypi = false             # PyPI upload is handled separately (e.g., in GitHub Actions)
-changelog_file = "CHANGELOG.md"    # Path to the changelog file
-update_changelog = true            # Automatically update the changelog on release
+# Entferne die auskommentierten/veralteten Einträge
