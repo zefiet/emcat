@@ -196,7 +196,8 @@ def run_server(serial_port=None, verbose=0):
     """
     Server mode: Connect to the Meshtastic device and listen for incoming packets using pubsub.
     Only packets on the DEFAULT_PORT are processed.
-    Once an emcat session is initialized (via the header), only packets from the session's client ID are processed.
+    Whenever a header packet is received (even during an active session),
+    a new session is initiated. If a session already exists, a warning is issued.
     Upon initialization, a buffer of (total_chunks * chunk_length) bytes is allocated.
     """
     if verbose >= 1:
@@ -207,7 +208,7 @@ def run_server(serial_port=None, verbose=0):
     session_client_id = None
     session_total_chunks = 0
     session_chunk_length = 0
-    session_buffer = None  # Will hold the allocated buffer for the session data
+    session_buffer = None  # Buffer for session data
     session_next_expected_chunk = 0  # Counter for expected chunk number
 
     def onConnection(interface, topic=pub.AUTO_TOPIC):
@@ -234,8 +235,6 @@ def run_server(serial_port=None, verbose=0):
 
         # Convert the expected port number (256) to its enum name, e.g., "PRIVATE_APP"
         expected_port = portnums_pb2.PortNum.Name(DEFAULT_PORT)
-
-        # Filter: Only process packets with the expected port name
         if portnum != expected_port:
             if verbose >= 2:
                 print(f"[DEBUG] Ignoring packet with port {portnum} (expected {expected_port}).")
@@ -245,95 +244,83 @@ def run_server(serial_port=None, verbose=0):
         payload = packet['decoded'].get('payload', None)
         header_signature = "[ɛm kæt]".encode("utf-8")
 
-        # Session initialization: look for the header packet
-        if not session_initialized:
-            if payload is not None:
-                # Convert payload to bytes if it is a string
-                if isinstance(payload, str):
-                    payload_bytes = payload.encode("utf-8")
-                else:
-                    payload_bytes = payload
+        # If payload exists, convert it to bytes
+        if payload is not None:
+            payload_bytes = payload.encode("utf-8") if isinstance(payload, str) else payload
 
-                # Check if the payload starts with the header signature
-                if payload_bytes.startswith(header_signature):
-                    # Ensure payload contains enough bytes for the header format:
-                    # header_signature + 0x90 + total_chunks + 0x90 + chunk_length
-                    expected_header_length = len(header_signature) + 4
-                    if len(payload_bytes) < expected_header_length:
+            # Check if the packet is a header packet
+            if payload_bytes.startswith(header_signature):
+                if session_initialized:
+                    if verbose >= 1:
+                        print("[WARNING] Received header packet while session active; aborting current session and reinitializing.")
+                # Process header packet regardless of session state:
+                expected_header_length = len(header_signature) + 4
+                if len(payload_bytes) < expected_header_length:
+                    if verbose >= 1:
+                        print("[WARNING] Incomplete header received; ignoring header parsing.")
+                else:
+                    if (payload_bytes[len(header_signature)] == 0x90 and
+                        payload_bytes[len(header_signature) + 2] == 0x90):
+                        total_chunks = payload_bytes[len(header_signature) + 1]
+                        chunk_length = payload_bytes[len(header_signature) + 3]
+                        session_client_id = packet['from']
+                        session_total_chunks = total_chunks
+                        session_chunk_length = chunk_length
+                        session_buffer = bytearray(total_chunks * chunk_length)
+                        session_next_expected_chunk = 0
+                        session_initialized = True
                         if verbose >= 1:
-                            print("[WARNING] Incomplete header received; ignoring header parsing.")
-                    else:
-                        # Verify header markers at the expected positions
-                        if payload_bytes[len(header_signature)] == 0x90 and payload_bytes[len(header_signature) + 2] == 0x90:
-                            total_chunks = payload_bytes[len(header_signature) + 1]
-                            chunk_length = payload_bytes[len(header_signature) + 3]
-                            session_client_id = packet['from']
-                            session_total_chunks = total_chunks
-                            session_chunk_length = chunk_length
-                            # Allocate the session buffer (total_chunks * chunk_length bytes)
-                            session_buffer = bytearray(total_chunks * chunk_length)
-                            # Initialize the chunk counter for the session
-                            session_next_expected_chunk = 0
-                            session_initialized = True
-                            if verbose >= 1:
-                                print(f"[INFO] Session initiated from client {format(session_client_id, '08x')}. "
-                                      f"Expecting {total_chunks} chunks with chunk length {chunk_length}. "
-                                      f"Allocated buffer of {total_chunks * chunk_length} bytes.")
-                        else:
-                            if verbose >= 2:
-                                print("[DEBUG] Header markers invalid; header format not recognized.")
-        else:
-            # Session is initialized: Only process packets from the session client ID.
-            if packet['from'] != session_client_id:
-                if verbose >= 2:
-                    print(f"[DEBUG] Ignoring packet from client {format(packet['from'], '08x')}; "
-                          f"session active from client {format(session_client_id, '08x')}.")
+                            print(f"[INFO] Session initiated from client {format(session_client_id, '08x')}. "
+                                  f"Expecting {total_chunks} chunks with chunk length {chunk_length}. "
+                                  f"Allocated buffer of {total_chunks * chunk_length} bytes.")
+                # Since header packets are used solely for session initialization, return now.
                 return
 
-            # Process session packets:
-            if payload is not None:
-                if isinstance(payload, str):
-                    payload_bytes = payload.encode("utf-8")
-                else:
-                    payload_bytes = payload
+        # If we reach here, the packet is not a header packet.
+        # If no session is active, ignore the packet.
+        if not session_initialized:
+            if verbose >= 2:
+                print("[DEBUG] No active session; ignoring non-header packet.")
+            return
 
-                # Define our per-chunk header marker.
-                # Our chunk header is: "ɛm" (UTF-8 encoded) + 0x90 + <chunk_number> + 0x90.
-                marker = "ɛm".encode("utf-8")
-                expected_chunk_header_length = len(marker) + 3  # marker, delimiter, chunk number, delimiter
+        # Process session packets only from the active session's client.
+        if packet['from'] != session_client_id:
+            if verbose >= 2:
+                print(f"[DEBUG] Ignoring packet from client {format(packet['from'], '08x')}; "
+                      f"session active from client {format(session_client_id, '08x')}.")
+            return
 
-                if (len(payload_bytes) >= expected_chunk_header_length and 
-                    payload_bytes.startswith(marker) and 
-                    payload_bytes[len(marker)] == 0x90 and 
-                    payload_bytes[len(marker) + 2] == 0x90):
-                    
-                    # Extract chunk number (one-byte integer at index len(marker) + 1)
-                    chunk_number = payload_bytes[len(marker) + 1]
-                    
-                    if chunk_number > session_next_expected_chunk:
-                        if verbose >= 1:
-                            print(f"[WARNING] Received chunk number {chunk_number} but expected {session_next_expected_chunk}. Missing chunks?")
-                    elif chunk_number < session_next_expected_chunk:
-                        if verbose >= 1:
-                            print(f"[INFO] Received chunk number {chunk_number} but expected {session_next_expected_chunk}. Ignoring duplicate/out-of-order packet.")
-                    else:
-                        # chunk_number == session_next_expected_chunk: expected chunk.
-                        # Extract the actual chunk data (after the header)
-                        chunk_data = payload_bytes[expected_chunk_header_length:]
-                        offset = chunk_number * session_chunk_length
-                        # Store the chunk data at the corresponding offset in the session buffer
-                        session_buffer[offset:offset+len(chunk_data)] = chunk_data
-                        if verbose >= 1:
-                            print(f"[INFO] Successfully received chunk {chunk_number}. Stored at offset {offset} in buffer.")
-                        session_next_expected_chunk += 1
-                else:
-                    if verbose >= 1:
-                        print(f"[INFO] Session packet received from client {format(packet['from'], '08x')} with no header marker.")
-            else:
+        # Define our per-chunk header marker.
+        # Format: "ɛm" (UTF-8) + 0x90 + <chunk_number> + 0x90.
+        marker = "ɛm".encode("utf-8")
+        expected_chunk_header_length = len(marker) + 3
+
+        if (len(payload_bytes) >= expected_chunk_header_length and
+            payload_bytes.startswith(marker) and
+            payload_bytes[len(marker)] == 0x90 and
+            payload_bytes[len(marker) + 2] == 0x90):
+
+            # Extract the chunk number (one byte after the first delimiter)
+            chunk_number = payload_bytes[len(marker) + 1]
+
+            if chunk_number > session_next_expected_chunk:
                 if verbose >= 1:
-                    print(f"[INFO] Session packet received from client {format(packet['from'], '08x')} with empty payload.")
+                    print(f"[WARNING] Received chunk number {chunk_number} but expected {session_next_expected_chunk}. Missing chunks?")
+            elif chunk_number < session_next_expected_chunk:
+                if verbose >= 1:
+                    print(f"[INFO] Received chunk number {chunk_number} but expected {session_next_expected_chunk}. Ignoring duplicate/out-of-order packet.")
+            else:
+                # Expected chunk received; extract chunk data (payload after header)
+                chunk_data = payload_bytes[expected_chunk_header_length:]
+                offset = chunk_number * session_chunk_length
+                session_buffer[offset:offset+len(chunk_data)] = chunk_data
+                if verbose >= 1:
+                    print(f"[INFO] Successfully received chunk {chunk_number}. Stored at offset {offset} in buffer.")
+                session_next_expected_chunk += 1
+        else:
+            if verbose >= 1:
+                print(f"[INFO] Session packet received from client {format(packet['from'], '08x')} with no header marker.")
 
-        # Additionally, print detailed packet info if verbose level is 2 or higher
         if verbose >= 2:
             timestamp = datetime.now().strftime("%y-%m-%d %H:%M:%S")
             channel_str = f" | CH: {packet['channel']}" if 'channel' in packet else ""
