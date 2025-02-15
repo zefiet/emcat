@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.3.4 (2025-02-15)
+
+### Bug Fixes
+
+- Update Version variable
+  ([`811fc65`](https://github.com/zefiet/emcat/commit/811fc657d9e326c49891071c7e6312b5215b4dcf))
+
+
 ## v0.3.3 (2025-02-15)
 
 ### Bug Fixes
