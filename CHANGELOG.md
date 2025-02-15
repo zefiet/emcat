@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.3.1 (2025-02-15)
+
+### Bug Fixes
+
+- Hopfully fix release workflow
+  ([`6ebb25b`](https://github.com/zefiet/emcat/commit/6ebb25be38b87e709ed2b38e769b83382945d0c1))
+
+
 ## v0.3.0 (2025-02-15)
 
 ### Bug Fixes
