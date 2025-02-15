@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.3.2 (2025-02-15)
+
+### Bug Fixes
+
+- Update E-Mail address
+  ([`929c8e4`](https://github.com/zefiet/emcat/commit/929c8e48c963caf9514819ea00e6408f98e9f53a))
+
+
 ## v0.3.1 (2025-02-15)
 
 ### Bug Fixes
