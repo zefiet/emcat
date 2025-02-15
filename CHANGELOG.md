@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.3.6 (2025-02-15)
+
+### Bug Fixes
+
+- Add lost commit message
+  ([`9985218`](https://github.com/zefiet/emcat/commit/9985218a79f336ae0bac68dd97a13d66bde3010e))
+
+
 ## v0.3.5 (2025-02-15)
 
 ### Bug Fixes
@@ -22,11 +30,6 @@
 - Update Version variable
   ([`811fc65`](https://github.com/zefiet/emcat/commit/811fc657d9e326c49891071c7e6312b5215b4dcf))
 
-### Chores
-
-- **release**: Bump version to 0.3.4
-  ([`fb2826c`](https://github.com/zefiet/emcat/commit/fb2826c58e5c31f72da067a0b96278f2c3d9f572))
-
 
 ## v0.3.3 (2025-02-15)
 
@@ -34,11 +37,6 @@
 
 - Hopfully fix semantic version configuration
   ([`883cd7f`](https://github.com/zefiet/emcat/commit/883cd7f712c4a66049269d2ff2e46fffb4ad97df))
-
-### Chores
-
-- **release**: Bump version to 0.3.3
-  ([`b7f5e45`](https://github.com/zefiet/emcat/commit/b7f5e45c104bb1cd745c0a818af2bd5d7930071a))
 
 
 ## v0.3.2 (2025-02-15)
