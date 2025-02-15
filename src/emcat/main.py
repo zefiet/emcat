@@ -199,6 +199,7 @@ def run_server(serial_port=None, verbose=0):
     Whenever a header packet is received (even during an active session),
     a new session is initiated. If a session already exists, a warning is issued.
     Upon initialization, a buffer of (total_chunks * chunk_length) bytes is allocated.
+    Once all chunks are received, an INFO is printed and the full data is output.
     """
     if verbose >= 1:
         print("[INFO] Server mode started.")
@@ -317,6 +318,14 @@ def run_server(serial_port=None, verbose=0):
                 if verbose >= 1:
                     print(f"[INFO] Successfully received chunk {chunk_number}. Stored at offset {offset} in buffer.")
                 session_next_expected_chunk += 1
+
+                # If all chunks have been received, output the complete data
+                if session_next_expected_chunk == session_total_chunks:
+                    if verbose >= 1:
+                        print("[INFO] All data received.")
+                    # Write the complete buffer to stdout (so it can be piped)
+                    sys.stdout.buffer.write(session_buffer)
+                    sys.stdout.buffer.flush()
         else:
             if verbose >= 1:
                 print(f"[INFO] Session packet received from client {format(packet['from'], '08x')} with no header marker.")
