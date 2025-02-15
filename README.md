@@ -1,6 +1,6 @@
 # [ɛm kæt]
 
-![ɛm kæt](doc/emcat-logo.png)
+![ɛm kæt](doc/emcat-logo-small.png)
 
 `emcat` is a netcat-inspired CLI tool that uses Meshtastic for serial communication.
 It lets you send and receive messages directly between Meshtastic devices.
