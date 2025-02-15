@@ -1,6 +1,34 @@
 # CHANGELOG
 
 
+## v0.3.0 (2025-02-15)
+
+### Bug Fixes
+
+- Exit listener graceful and use proper log output
+  ([`14e6398`](https://github.com/zefiet/emcat/commit/14e6398fa2da7991da0ed096e034dc6896de7726))
+
+### Features
+
+- Add package header
+  ([`e77fdd1`](https://github.com/zefiet/emcat/commit/e77fdd1b24798242adabaabfbd92328dcdd368d1))
+
+- Add session reset
+  ([`c034711`](https://github.com/zefiet/emcat/commit/c03471151cbe5ef18d3706c6c06d72118e8859c5))
+
+- Handle received chunks
+  ([`00ec22e`](https://github.com/zefiet/emcat/commit/00ec22ee62aec37f3cdabf43c2b0656b2f28351b))
+
+- Init session before transfer
+  ([`3cba5c5`](https://github.com/zefiet/emcat/commit/3cba5c55927e89dc7e688ddf6fb6722373cd2a2e))
+
+- Only listen to emcat port packages
+  ([`e8b8056`](https://github.com/zefiet/emcat/commit/e8b805607bf48dfc99a4db258fddd841a482b917))
+
+- Wirte buffer to stdout
+  ([`d5ffc74`](https://github.com/zefiet/emcat/commit/d5ffc74c3f0fa83d36d667fab491c780e4d7481b))
+
+
 ## v0.2.0 (2025-02-13)
 
 ### Features
