@@ -27,11 +27,10 @@ def sigint_handler(sig, frame):
 signal.signal(signal.SIGINT, sigint_handler)
 
 # Global default configuration
-DEFAULT_DELAY = 0         # Delay between sending chunks in seconds (default: 1 second)
-DEFAULT_TIMEOUT = 10      # Timeout for waiting for an ACK in seconds (default: 30 seconds)
+DEFAULT_DELAY = 0         # Delay between sending chunks in seconds (default: 0 seconds)
+DEFAULT_TIMEOUT = 10      # Timeout for waiting for an ACK in seconds (default: 10 seconds)
 DEFAULT_CHUNK_SIZE = 180  # Maximum payload size per chunk in bytes (default: 180 bytes)
 DEFAULT_PORT = 256        # Default port number for sending data
-
 
 # Import port number definitions from the Meshtastic package.
 from meshtastic import portnums_pb2
@@ -42,7 +41,6 @@ def connect_device(serial_port=None, verbose=0):
     Establish a connection to the Meshtastic device using the Meshtastic library.
     If a serial port is provided, it is used; otherwise, the default behavior of the
     Meshtastic client is applied.
-
     After a successful connection, sendHeartbeat() is used to verify the connection.
     """
     try:
@@ -99,12 +97,11 @@ def send_chunk(interface, chunk, destination, timeout=DEFAULT_TIMEOUT, verbose=0
             if verbose >= 1:
                 print(f"[WARNING] Exception during sending heartbeat: {e}")
         if verbose >= 1:
-            print(f"[INFO] Sending data: {chunk}")
+            print(f"[INFO] Sending chunk data: {chunk}")
         try:
             interface.sendData(
                 chunk,
                 destinationId=destination,
-                #portNum=portnums_pb2.PortNum.TEXT_MESSAGE_APP,
                 portNum=DEFAULT_PORT,
                 wantAck=True,
                 onResponse=callback,
@@ -116,7 +113,7 @@ def send_chunk(interface, chunk, destination, timeout=DEFAULT_TIMEOUT, verbose=0
             continue
         if not ack_event.wait(timeout):
             print("[WARNING] No ACK received, resending chunk...")
-        else:            
+        else:
             if verbose >= 1:
                 print("[INFO] ACK received for chunk.")
     ack_event.clear()
@@ -211,15 +208,17 @@ def run_server(serial_port=None, verbose=0):
     session_total_chunks = 0
     session_chunk_length = 0
     session_buffer = None  # Will hold the allocated buffer for the session data
+    session_next_expected_chunk = 0  # Counter for expected chunk number
 
     def onConnection(interface, topic=pub.AUTO_TOPIC):
         if verbose >= 1:
             print("[INFO] Meshtastic device connected.")
         pub.subscribe(on_receive, "meshtastic.receive")
-        #pub.subscribe(on_receive_data, "meshtastic.receive.data")
+        # Uncomment below if additional data packet subscription is needed:
+        # pub.subscribe(on_receive_data, "meshtastic.receive.data")
 
     def on_receive(packet, interface):
-        nonlocal session_initialized, session_client_id, session_total_chunks, session_chunk_length, session_buffer
+        nonlocal session_initialized, session_client_id, session_total_chunks, session_chunk_length, session_buffer, session_next_expected_chunk
 
         # Debug: print the entire packet if verbose level is 2 or higher
         if verbose >= 2:
@@ -246,7 +245,7 @@ def run_server(serial_port=None, verbose=0):
         payload = packet['decoded'].get('payload', None)
         header_signature = "[ɛm kæt]".encode("utf-8")
 
-        # If session is not yet initialized, check for header packet
+        # Session initialization: look for the header packet
         if not session_initialized:
             if payload is not None:
                 # Convert payload to bytes if it is a string
@@ -273,6 +272,8 @@ def run_server(serial_port=None, verbose=0):
                             session_chunk_length = chunk_length
                             # Allocate the session buffer (total_chunks * chunk_length bytes)
                             session_buffer = bytearray(total_chunks * chunk_length)
+                            # Initialize the chunk counter for the session
+                            session_next_expected_chunk = 0
                             session_initialized = True
                             if verbose >= 1:
                                 print(f"[INFO] Session initiated from client {format(session_client_id, '08x')}. "
@@ -288,11 +289,51 @@ def run_server(serial_port=None, verbose=0):
                     print(f"[DEBUG] Ignoring packet from client {format(packet['from'], '08x')}; "
                           f"session active from client {format(session_client_id, '08x')}.")
                 return
-            # For every packet that belongs to the session, print an info message.
-            if verbose >= 1:
-                print(f"[INFO] Session packet received from client {format(packet['from'], '08x')}.")
 
-        # Additionally, print packet details if verbose level is 2 or higher
+            # Process session packets:
+            if payload is not None:
+                if isinstance(payload, str):
+                    payload_bytes = payload.encode("utf-8")
+                else:
+                    payload_bytes = payload
+
+                # Define our per-chunk header marker.
+                # Our chunk header is: "ɛm" (UTF-8 encoded) + 0x90 + <chunk_number> + 0x90.
+                marker = "ɛm".encode("utf-8")
+                expected_chunk_header_length = len(marker) + 3  # marker, delimiter, chunk number, delimiter
+
+                if (len(payload_bytes) >= expected_chunk_header_length and 
+                    payload_bytes.startswith(marker) and 
+                    payload_bytes[len(marker)] == 0x90 and 
+                    payload_bytes[len(marker) + 2] == 0x90):
+                    
+                    # Extract chunk number (one-byte integer at index len(marker) + 1)
+                    chunk_number = payload_bytes[len(marker) + 1]
+                    
+                    if chunk_number > session_next_expected_chunk:
+                        if verbose >= 1:
+                            print(f"[WARNING] Received chunk number {chunk_number} but expected {session_next_expected_chunk}. Missing chunks?")
+                    elif chunk_number < session_next_expected_chunk:
+                        if verbose >= 1:
+                            print(f"[INFO] Received chunk number {chunk_number} but expected {session_next_expected_chunk}. Ignoring duplicate/out-of-order packet.")
+                    else:
+                        # chunk_number == session_next_expected_chunk: expected chunk.
+                        # Extract the actual chunk data (after the header)
+                        chunk_data = payload_bytes[expected_chunk_header_length:]
+                        offset = chunk_number * session_chunk_length
+                        # Store the chunk data at the corresponding offset in the session buffer
+                        session_buffer[offset:offset+len(chunk_data)] = chunk_data
+                        if verbose >= 1:
+                            print(f"[INFO] Successfully received chunk {chunk_number}. Stored at offset {offset} in buffer.")
+                        session_next_expected_chunk += 1
+                else:
+                    if verbose >= 1:
+                        print(f"[INFO] Session packet received from client {format(packet['from'], '08x')} with no header marker.")
+            else:
+                if verbose >= 1:
+                    print(f"[INFO] Session packet received from client {format(packet['from'], '08x')} with empty payload.")
+
+        # Additionally, print detailed packet info if verbose level is 2 or higher
         if verbose >= 2:
             timestamp = datetime.now().strftime("%y-%m-%d %H:%M:%S")
             channel_str = f" | CH: {packet['channel']}" if 'channel' in packet else ""
@@ -301,24 +342,13 @@ def run_server(serial_port=None, verbose=0):
             print(f"[DEBUG] [{timestamp}] !{format(packet['from'], '08x')} > !{format(packet['to'], '08x')}"
                   f"{channel_str}{prio_str} | PORT: {portnum}{payload_str}")
 
-    # def on_receive_data(packet, interface):
-    #     from pprint import pprint
-    #     try:
-    #         packet.show()
-    #     except AttributeError:
-    #         pprint(packet)
-
-    def on_disconnect(interface, topic=pub.AUTO_TOPIC):
-        if verbose >= 1:
-            print("[INFO] Meshtastic device disconnected. Exiting gracefully.")
-        sys.exit(0)
-
-    # Subscribe to connection lost and established topics
-    pub.subscribe(on_disconnect, "meshtastic.connection.lost")
+    # Subscribe to connection established and lost topics
     pub.subscribe(onConnection, "meshtastic.connection.established")
+    pub.subscribe(lambda interface, topic=pub.AUTO_TOPIC: (print("[INFO] Meshtastic device disconnected. Exiting gracefully."), sys.exit(0)),
+                  "meshtastic.connection.lost")
 
+    # Connect to the device
     interface = connect_device(serial_port, verbose)
-
     print("Server mode: Listening for incoming Meshtastic packets...")
 
     # Keep the server loop running indefinitely.
@@ -329,7 +359,7 @@ def run_server(serial_port=None, verbose=0):
         except Exception as e:
             print(f"[ERROR] Exception in server loop: {e}")
             sys.exit(1)
-            
+
 
 def main():
     parser = argparse.ArgumentParser(
