@@ -1,12 +1,31 @@
 # CHANGELOG
 
 
+## v0.3.5 (2025-02-15)
+
+### Bug Fixes
+
+- Fix Version number
+  ([`e906b4e`](https://github.com/zefiet/emcat/commit/e906b4e5c5543c436a8061ae623bc8321c53ae1b))
+
+- Test ...
+  ([`ba9cc76`](https://github.com/zefiet/emcat/commit/ba9cc76aca1aa597e5950f03849a985fd05bd69d))
+
+- Test another semantic release configuration
+  ([`97b3ec3`](https://github.com/zefiet/emcat/commit/97b3ec339d407a48880f9923ee64dbee3955d55d))
+
+
 ## v0.3.4 (2025-02-15)
 
 ### Bug Fixes
 
 - Update Version variable
   ([`811fc65`](https://github.com/zefiet/emcat/commit/811fc657d9e326c49891071c7e6312b5215b4dcf))
+
+### Chores
+
+- **release**: Bump version to 0.3.4
+  ([`fb2826c`](https://github.com/zefiet/emcat/commit/fb2826c58e5c31f72da067a0b96278f2c3d9f572))
 
 
 ## v0.3.3 (2025-02-15)
@@ -15,6 +34,11 @@
 
 - Hopfully fix semantic version configuration
   ([`883cd7f`](https://github.com/zefiet/emcat/commit/883cd7f712c4a66049269d2ff2e46fffb4ad97df))
+
+### Chores
+
+- **release**: Bump version to 0.3.3
+  ([`b7f5e45`](https://github.com/zefiet/emcat/commit/b7f5e45c104bb1cd745c0a818af2bd5d7930071a))
 
 
 ## v0.3.2 (2025-02-15)
