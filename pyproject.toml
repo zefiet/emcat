@@ -4,20 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emcat"
-version = "0.1.0"
+version = "0.3.0"
 description = "A netcat-inspired CLI tool that uses the Meshtastic library to connect to a Meshtastic device via serial."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
 authors = [
   { name = "Christoph Vieth", email = "christoph@vieth.me" }
 ]
-requires-python = ">=3.8"
 dependencies = [
   "meshtastic"
 ]
+keywords = ["CLI", "meshtastic", "netcat", "emcat"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
   "Operating System :: MacOS :: MacOS X"
 ]
+
+[project.urls]
+"Repository" = "https://github.com/zefiet/emcat"
 
 [project.scripts]
 emcat = "emcat.main:main"
