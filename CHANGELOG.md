@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.3.3 (2025-02-15)
+
+### Bug Fixes
+
+- Hopfully fix semantic version configuration
+  ([`883cd7f`](https://github.com/zefiet/emcat/commit/883cd7f712c4a66049269d2ff2e46fffb4ad97df))
+
+
 ## v0.3.2 (2025-02-15)
 
 ### Bug Fixes
