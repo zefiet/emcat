@@ -1,0 +1,5 @@
+## E X A M P L E ##
+This is an example file containing useless data.
+
+Have fun transferring useless data across an emergency communication infrastructure :)
+
