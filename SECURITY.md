@@ -14,5 +14,5 @@ No security updates or fixes are officially provided.
 `emcat` is experimental software, and security is not a primary focus.  
 However, if you discover a vulnerability, feel free to open an issue or submit a pull request.  
 
-For responsible disclosure, please email [your contact email] before publicly disclosing any security concerns.  
+For responsible disclosure, please email <christoph@vieth.me> before publicly disclosing any security concerns.  
 Due to the experimental nature of this project, response times may vary.
