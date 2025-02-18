@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.5.0 (2025-02-18)
+
+### Chores
+
+- Add open graph logo
+  ([`efdf1d0`](https://github.com/zefiet/emcat/commit/efdf1d075e2eb264c9070ce727c4888f2ab2e921))
+
+### Features
+
+- Added `emdump` cli-tool
+  ([`bc4b6fd`](https://github.com/zefiet/emcat/commit/bc4b6fdd8856bb664fb5f53c69166665c006e100))
+
+- Dump and replay PCAP file
+  ([`b86e17b`](https://github.com/zefiet/emcat/commit/b86e17bf0494629afd474f6023fe8061507aa71c))
+
+
 ## v0.4.1 (2025-02-15)
 
 ### Bug Fixes
