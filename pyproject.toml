@@ -26,7 +26,8 @@ classifiers = [
 "Repository" = "https://github.com/zefiet/emcat"
 
 [project.scripts]
-emcat = "emcat.main:main"
+emcat = "emcat.cat:main"
+emdump = "emcat.dump:main"
 
 [tool.semantic_release]
 branch = "main"                                # Only release from the main branch
