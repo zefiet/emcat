@@ -13,7 +13,8 @@ authors = [
   { name = "Christoph Vieth", email = "christoph@vieth.me" }
 ]
 dependencies = [
-  "meshtastic"
+  "meshtastic",
+  "dpkt"
 ]
 keywords = ["CLI", "meshtastic", "netcat", "emcat"]
 classifiers = [
